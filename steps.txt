@@ -1,0 +1,78 @@
+ 
+openssl genrsa -out server.key 2048
+cat > csr.conf <<EOF
+[ req ]
+default_bits = 2048
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+
+[ dn ]
+C = CA
+ST = ON
+L = Test
+O = Test1
+OU = Test2
+CN = demo.dhyan.com
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = demo.dhyan.com
+
+
+EOF
+openssl req -new -key server.key -out server.csr -config csr.conf 
+
+
+#--------------------------------------------------------
+
+openssl req -x509 \
+            -sha256 -days 356 \
+            -nodes \
+            -newkey rsa:2048 \
+            -subj "/CN=ca.dhyan.com/C=US/L=San Fransisco" \
+            -keyout rootCA.key -out rootCA.crt 
+            
+#--------------------------------------------------------    
+
+
+
+cat > cert.conf <<EOF
+
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = demo.dhyan.com
+
+EOF
+
+openssl x509 -req \
+    -in server.csr \
+    -CA rootCA.crt -CAkey rootCA.key \
+    -CAcreateserial -out server.crt \
+    -days 365 \
+    -sha256 -extfile cert.conf
+
+ #----------------------
+    
+openssl pkcs12 -export -in server.crt -inkey server.key -out ks.p12 -name dhyan -CAfile rootCA.crt
+
+
+#---------------
+	       <Connector 
+SSLCipherSuite="TLSv1.2:!3DES" 
+SSLEnabled="true" keystoreFile="/home/dhyan/DCC/Cert/ks.p12" 
+keystorePass="dhyan" 
+port="8443" 
+protocol="org.apache.coyote.http11.Http11NioProtocol" 
+scheme="https" 
+secure="true" 
+sslEnabledProtocols="TLSv1.2" 
+sslProtocol="TLSv1.2" 
+/>
